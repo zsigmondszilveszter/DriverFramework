@@ -33,10 +33,9 @@
 
 #include <string.h>
 #include <math.h>
-#include <time.h>
-#include <sys/time.h>
 #include "DriverFramework.hpp"
 #include "BMP180.hpp"
+#include "Utilities.hpp"
 #ifdef __DF_QURT
 #include "dev_fs_lib_i2c.h"
 #endif
@@ -56,6 +55,8 @@
 #define BMP180_BITS_CONFIG_STANDBY_0MS5	0b00000000
 #define BMP180_BITS_CONFIG_FILTER_OFF	0b00000000
 #define BMP180_BITS_CONFIG_SPI_OFF	0b00000000
+
+#define MEASURE_MEASURE_TIME false
 
 using namespace DriverFramework;
 
@@ -211,7 +212,9 @@ void BMP180::_measure()
 
 void BMP180::_measureData()
 {
-	// begin_time = startRealTimeMeasure();
+#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
+	begin_time = Utilities::startRealTimeMeasure();
+#endif 
 
 	uint8_t pdata[BMP180_MAX_LEN_SENSOR_DATA_BUFFER_IN_BYTES];
 	uint32_t UT, UP;
@@ -295,42 +298,10 @@ void BMP180::_measureData()
 	m_sensor_data.last_read_time_usec = DriverFramework::offsetTime();
 	m_sensor_data.read_counter++;
 
-	// measureAndPrintRealTime(begin_time);
+#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
+	Utilities::measureAndPrintRealTime(begin_time);
+#endif 
+	
 
 	_publish(m_sensor_data);
-}
-
-
-/* ************************************************************************** */
-// Wall time
-/* ************************************************************************** */
-double BMP180::getRealClock(){
-    struct timeval time;
-    if (gettimeofday(&time,NULL)){
-        //  Handle error
-        return 0;
-    }
-    return (double)time.tv_sec * 1000000 + (double)time.tv_usec;
-}
-
-/* ************************************************************************** */
-// Wall time
-/* ************************************************************************** */
-double BMP180::startRealTimeMeasure(){
-    return getRealClock();
-}
-
-/* ************************************************************************** */
-// return the elapsed time from startTime in milisec in Real time
-/* ************************************************************************** */
-double BMP180::measureRealTime(double startTime){
-    double end = getRealClock();
-    return (double)(end - startTime) / 1000;
-}
-
-/* ************************************************************************** */
-// print to standard output the elapsed time from startTime in milisec in Real time
-/* ************************************************************************** */
-void BMP180::measureAndPrintRealTime(double startTime){
-    DF_LOG_ERR("Time elapsed: %0.6f msec", measureRealTime(startTime));
 }

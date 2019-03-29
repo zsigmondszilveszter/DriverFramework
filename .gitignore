@@ -5,3 +5,4 @@ build_qurt
 build_bebop
 build_edison
 __pycache__
+.vscode

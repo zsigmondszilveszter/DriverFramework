@@ -58,6 +58,7 @@ else()
 		ImuSensor.cpp
 		BaroSensor.cpp
 		MagSensor.cpp
+		Utilities.cpp
 		)
 	# Try to check if i2c-dev.h is sane
 	if (COMMAND check_i2c_dev_h)

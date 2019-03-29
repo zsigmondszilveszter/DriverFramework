@@ -104,11 +104,7 @@ private:
 	int set_i2c_slave_config();
 	void _measureDataRC();
 
-	double begin_time;
-	double getRealClock();
-	double startRealTimeMeasure();
-	double measureRealTime(double startTime);
-	void measureAndPrintRealTime(double startTime);
+	double begin_time; // store the time measurement in it, if it is desired
 };
 
 }; // namespace DriverFramework
