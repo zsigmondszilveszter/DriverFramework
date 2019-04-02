@@ -39,6 +39,6 @@ double Utilities::measureRealTime(double startTime){
 /* ************************************************************************** */
 // print to standard output the elapsed time from startTime in milisec in Real time
 /* ************************************************************************** */
-void Utilities::measureAndPrintRealTime(double startTime){
-    DF_LOG_ERR("Time elapsed: %0.6f msec", measureRealTime(startTime));
+void Utilities::measureAndPrintRealTime(double startTime, char * label){
+    DF_LOG_ERR("%s time elapsed: %0.6f msec", label, measureRealTime(startTime));
 }

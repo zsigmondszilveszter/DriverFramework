@@ -43,6 +43,8 @@
 #define IMU_DEVICE_PATH "/dev/i2c-2"
 #elif defined(__DF_BEBOP)
 #define IMU_DEVICE_PATH "/dev/i2c-mpu6050"
+#elif defined(__DF_SZILVESZTER)
+#define IMU_DEVICE_PATH "/dev/i2c-0"
 #else
 #define IMU_DEVICE_PATH "/dev/iic-2"
 #endif

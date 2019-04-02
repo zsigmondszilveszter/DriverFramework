@@ -12,7 +12,7 @@ namespace DriverFramework
     { 
     public:
         static double startRealTimeMeasure();
-        static void measureAndPrintRealTime(double startTime);
+        static void measureAndPrintRealTime(double startTime, char * label);
 
     protected:
         static double getRealClock();

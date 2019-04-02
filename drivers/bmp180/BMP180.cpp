@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2015 Mark Charlebois. All rights reserved.
+ *   Copyright (C) 2019 Szilveszter Zsigmond. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -146,6 +146,9 @@ int BMP180::BMP180_init()
 
 	DF_LOG_INFO("BMP180 sensor configuration succeeded");
 
+	//
+	next_time = offsetTime();
+
 	usleep(1000);
 	return 0;
 }
@@ -210,68 +213,141 @@ void BMP180::_measure()
 	_measureData();
 }
 
+/**
+ * 
+ */
 void BMP180::_measureData()
 {
-#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
+	#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
+	Utilities::measureAndPrintRealTime(begin_time, (char *) "BMP180");
+	#endif 
+	#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
 	begin_time = Utilities::startRealTimeMeasure();
-#endif 
+	#endif 
 
+	// the controller of finite state machine
+	finiteStateMachineController();
+	
+	#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
+	Utilities::measureAndPrintRealTime(begin_time, (char *) "BMP180");
+	#endif 
+}
+
+/**
+ * This function is automatically invoked in every BMP180_MEASURE_INTERVAL_US microsecond
+ * and make a step in Finite State Machine
+ */
+void BMP180::finiteStateMachineController(){
+	uint64_t now = offsetTime();
+
+	switch(f_state){
+		case StartTempMeas: {
+			if(now >= next_time){
+				// start temp measurement
+				finiteStateMachine();
+				//
+				f_state = ReadTempAndStartBaroMeas;
+				next_time = now + 4500; // wait 4500 usec for conversation and then read the temp.
+			}
+			break;
+		}
+		case ReadTempAndStartBaroMeas: {
+			if(now >= next_time){
+				//read temperature and start baro measurement
+				finiteStateMachine();
+				//
+				f_state = ReadBaro;
+				switch(BMP180_OSS){
+					case 0: next_time = now + 4500; break;
+					case 1: next_time = now + 7500; break;
+					case 2: next_time = now + 13500; break;
+					case 3: next_time = now + 25500; break;
+					default: next_time = now + 4500; break;
+				}
+			}
+			break;
+		}
+		case ReadBaro: {
+			if(now >= next_time){
+				// read barometer
+				finiteStateMachine();
+				f_state = StartTempMeas;
+
+				next_time = now;
+				// start new temperature measurement
+				finiteStateMachine(); 
+			}
+			break;
+		}
+	}
+}
+
+/**
+ * 
+ */
+void BMP180::finiteStateMachine(){
 	uint8_t pdata[BMP180_MAX_LEN_SENSOR_DATA_BUFFER_IN_BYTES];
-	uint32_t UT, UP;
 	uint8_t buffer_out[2];
 	int result;
 
-	// TEMPERATURE
-	// start measurement
-	buffer_out[0] = 0x2e;
-	result = _writeReg(BMP180_REG_CTRL_MEAS, buffer_out, 1);
-	if (result < 0) {
-		DF_LOG_ERR("error: writing I2C bus failed");
-		return;
-	}
-	// wait for measurement
-	usleep(4500); 
-	// read the temperature
-	result = _readReg(BMP180_REG_OUT_MSB, pdata, 2);
-	if (result < 0) {
-		DF_LOG_ERR("error: reading I2C bus failed");
-		return;
-	}
-	UT = ( pdata[0] << 8 ) + pdata[1];
+	switch(f_state){
+		case StartTempMeas: {
+			// start temperature measurement
+			buffer_out[0] = 0x2e;
+			result = _writeReg(BMP180_REG_CTRL_MEAS, buffer_out, 1);
+			if (result < 0) {
+				DF_LOG_ERR("error: writing I2C bus failed");
+				return;
+			}
+			break;
+		}
+		case ReadTempAndStartBaroMeas: {
+			// read raw temperature
+			result = _readReg(BMP180_REG_OUT_MSB, pdata, 2);
+			if (result < 0) {
+				DF_LOG_ERR("error: reading I2C bus failed");
+				return;
+			}
+			raw_temperature = ( pdata[0] << 8 ) + pdata[1];
+			
 
+			// start pressure measurement
+			buffer_out[0] = 0x34 + (BMP180_OSS << 6);
+			result = _writeReg(BMP180_REG_CTRL_MEAS, buffer_out, 1);
+			if (result < 0) {
+				DF_LOG_ERR("error: writing I2C bus failed");
+				return;
+			}
+			break;
+		}
+		case ReadBaro: {
+			// read barometer(pressure)
+			result = _readReg(BMP180_REG_OUT_MSB, pdata, 3);
+			if (result < 0) {
+				DF_LOG_ERR("error: reading I2C bus failed");
+				return;
+			}
+			raw_pressure = (( pdata[0] << 16 ) + ( pdata[1] << 8) + pdata[2] ) >> (8 - BMP180_OSS);
 
-	// PRESSURE
-	buffer_out[0] = 0x34 + (BMP180_OSS << 6);
-	result = _writeReg(BMP180_REG_CTRL_MEAS, buffer_out, 1);
-	if (result < 0) {
-		DF_LOG_ERR("error: writing I2C bus failed");
-		return;
+			processRawDataAndPublish();
+			break;
+		}
 	}
-	switch(BMP180_OSS){
-		case 0: usleep(4500); break;
-		case 1: usleep(7500); break;
-		case 2: usleep(13500); break;
-		case 3: usleep(25500); break;
-		default: usleep(4500); break;
-	}
-	result = _readReg(BMP180_REG_OUT_MSB, pdata, 3);
-	if (result < 0) {
-		DF_LOG_ERR("error: reading I2C bus failed");
-		return;
-	}
-	UP = (( pdata[0] << 16 ) + ( pdata[1] << 8) + pdata[2] ) >> (8 - BMP180_OSS);
+}
 
-
+/**
+ * 
+ */
+void BMP180::processRawDataAndPublish(){
 	int32_t T, P;
 	int32_t b3, b5, b6, x1, x2, x3;
 	uint32_t b4, b7;
 
 	// calculate temperature
-	x1 = ( UT - m_sensor_calibration.AC6 ) * m_sensor_calibration.AC5 / 32768;
+	x1 = ( raw_temperature - m_sensor_calibration.AC6 ) * m_sensor_calibration.AC5 / 32768;
 	x2 = m_sensor_calibration.MC * 2048 / ( x1 + m_sensor_calibration.MD );
 	b5 = x1 + x2;
 	T = ( b5 + 8 ) / 16;
-
 	// calculate pressure
 	b6 = b5 - 4000;
 	x1 = ( m_sensor_calibration.B2 * ( b6 * b6 / 4096 )) / 2048;
@@ -282,7 +358,7 @@ void BMP180::_measureData()
 	x2 = ( m_sensor_calibration.B1 * ( b6 * b6 / 4096 )) / 65536;
 	x3 = (( x1 + x2 ) + 2) / 4;
 	b4 = m_sensor_calibration.AC4 * (uint32_t)( x3 + 32768 ) / 32768;
-	b7 = ((uint32_t) UP - b3) * ( 50000 >> BMP180_OSS );
+	b7 = ((uint32_t) raw_pressure - b3) * ( 50000 >> BMP180_OSS );
 	if( b7 < 0x80000000 ){
 		P = (b7 * 2) / b4;
 	} else {
@@ -293,15 +369,11 @@ void BMP180::_measureData()
 	x2 = ( -7357 * P ) / 65536;
 	P = P + ( x1 + x2 + 3791 ) / 16;
 
+	// and publish data
 	m_sensor_data.temperature_c = T * (float)0.1;
 	m_sensor_data.pressure_pa = (float)P;
 	m_sensor_data.last_read_time_usec = DriverFramework::offsetTime();
 	m_sensor_data.read_counter++;
-
-#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
-	Utilities::measureAndPrintRealTime(begin_time);
-#endif 
-	
 
 	_publish(m_sensor_data);
 }

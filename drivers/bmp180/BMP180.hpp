@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2015 Mark Charlebois. All rights reserved.
+ *   Copyright (C) 2019 Szilveszter Zsigmond. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,8 +55,10 @@ struct bmp180_sensor_calibration {
 #define BARO_DEVICE_PATH "/dev/i2c-1"
 
 
-// update frequency is 33 Hz at ultra high resolution oversampling; oss = 3
-#define BMP180_MEASURE_INTERVAL_US 33000
+// update frequency is 30 Hz at ultra high resolution oversampling; oss = 3
+// but we make the scheduler to call the measurement function in every 1500 usec
+// and do the neccessary task in every step with a finite state machine 
+#define BMP180_MEASURE_INTERVAL_US 1600
 
 #define BMP180_BUS_FREQUENCY_IN_KHZ 400
 #define BMP180_TRANSFER_TIMEOUT_IN_USECS 9000
@@ -70,6 +72,7 @@ struct bmp180_sensor_calibration {
 
 #define BMP180_SLAVE_ADDRESS 0b1110111       /* 7-bit slave address */
 
+enum BMP180_states { StartTempMeas, ReadTempAndStartBaroMeas, ReadBaro };
 
 class BMP180 : public BaroSensor
 {
@@ -78,6 +81,7 @@ public:
 	{
 		m_id.dev_id_s.devtype = DRV_DF_DEVTYPE_BMP180;
 		m_id.dev_id_s.address = BMP180_SLAVE_ADDRESS;
+		f_state = StartTempMeas;
 	}
 
 	// @return 0 on success, -errno on failure
@@ -104,7 +108,17 @@ private:
 	int set_i2c_slave_config();
 	void _measureDataRC();
 
+	void finiteStateMachineController();
+	void finiteStateMachine();
+	void processRawDataAndPublish();
+
 	double begin_time; // store the time measurement in it, if it is desired
+
+	uint32_t raw_temperature;
+	uint64_t raw_pressure;
+
+	BMP180_states f_state;
+	uint64_t next_time;
 };
 
 }; // namespace DriverFramework
