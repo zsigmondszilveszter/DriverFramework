@@ -39,7 +39,55 @@
 
 #define MEASURE_MEASURE_TIME false
 
+#define G_SI 9.80665f
+#define PI 3.14159f
+
 using namespace DriverFramework;
+
+/**
+ * 
+ */
+void LSM6DS33::set_gyro_scale(int scale)
+{
+	switch (scale) {
+	case LSM6DS33_BITS_FS_G_245DPS:
+		_gyro_scale = PI / 180.0f * 0.00875f;
+		break;
+	case LSM6DS33_BITS_FS_G_500DPS:
+		_gyro_scale = PI / 180.0f * 0.0175f;
+		break;
+	case LSM6DS33_BITS_FS_G_1000DPS:
+		_gyro_scale = PI / 180.0f * 0.035f;
+		break;
+	case LSM6DS33_BITS_FS_G_2000DPS:
+		_gyro_scale = PI / 180.0f * 0.07f;
+		break;
+	}
+}
+
+/**
+ * 
+ */
+void LSM6DS33::set_acc_scale(int scale)
+{
+	switch (scale) {
+	case LSM6DS33_BITS_FS_XL_2G:
+		_acc_scale = 0.000061f * G_SI;
+		break;
+
+	case LSM6DS33_BITS_FS_XL_4G:
+		_acc_scale = 0.000122f * G_SI;
+		break;
+
+	case LSM6DS33_BITS_FS_XL_8G:
+		_acc_scale = 0.000244f * G_SI;
+		break;
+
+	case LSM6DS33_BITS_FS_XL_16G:
+		_acc_scale = 0.000488f * G_SI;
+		break;
+	}
+}
 
 /**
  * 
@@ -81,7 +129,7 @@ int LSM6DS33::lsm6ds33_init()
 	int result;
 	uint8_t sensor_id;
 
-	/* Read the ID of the BMP180 sensor to confirm it's presence. */
+	/* Read the ID of the LSM6DS33 sensor to confirm it's presence. */
 	result = _readReg(LSM6DS33_WHO_AM_I, &sensor_id, sizeof(sensor_id));
 	if (result != 0) {
 		DF_LOG_ERR("error: unable to communicate with the LSM6DS33 IMU sensor");
@@ -93,24 +141,50 @@ int LSM6DS33::lsm6ds33_init()
 	}
 
 	// init
-	// Accelerometer operating mode selection. Note: see CTRL1_XL (10h) register description for details
-    // write_i2c_register(FD_ImuIIC, CTRL1_XL,(char) 0b01100000 ); // 416 Hz (High Performance)
-	result = _writeReg( LSM6DS33_CTRL1_XL,(char) 0b01010000 ); // 208 Hz
-	if (result != 0) {
-		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Gyro");
-		return -EIO;
-	}
-
-	// Gyroscope operating mode selection. Note: see CTRL2_G (10h) register description for details
-	// write_i2c_register(FD_ImuIIC, CTRL2_G, (char) 0b01100000 ); // 416 Hz (High Performance)
-	result = _writeReg(LSM6DS33_CTRL2_G, (char) 0b01010000 ); // 208 Hz
+	// enable accelerometer X,Y,Z axes (although they are enbled default)
+	result = _writeReg( LSM6DS33_CTRL9_XL, (uint8_t)0x38 );
 	if (result != 0) {
 		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Accel");
 		return -EIO;
 	}
+	// enable gyroscope X,Y,Z axes (although they are enbled default)
+	result = _writeReg( LSM6DS33_CTRL10_C,(uint8_t) 0x38 );
+	if (result != 0) {
+		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Gyro");
+		return -EIO;
+	}
+	
+	
+	// Accelerometer operating mode selection. Note: see CTRL1_XL (10h) register description for details
+	result = _writeReg( LSM6DS33_CTRL1_XL, (uint8_t)(0x60 | LSM6DS33_BITS_FS_XL_16G | LSM6DS33_BITS_BW_XL_400HZ) ); // 0x60 = 416 Hz (High Performance)
+	if (result != 0) {
+		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Accel");
+		return -EIO;
+	}
+	set_acc_scale(LSM6DS33_BITS_FS_XL_16G);
 
-	// write_i2c_register(FD_ImuIIC, CTRL7_G, (char) 0b10000000); // Gyroscope: disable high performance mode, enable normal mode
-	// write_i2c_register(FD_ImuIIC, CTRL6_C, (char) 0b00010000); // Accelerometer: disable high performance mode, enable normal mode
+	// Gyroscope operating mode selection. Note: see CTRL2_G (10h) register description for details
+	result = _writeReg(LSM6DS33_CTRL2_G, (uint8_t)(0x60 | LSM6DS33_BITS_FS_G_2000DPS) ); //  0x60 = 416 Hz (High Performance)
+	if (result != 0) {
+		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Gyro");
+		return -EIO;
+	}
+	set_gyro_scale(LSM6DS33_BITS_FS_G_2000DPS);
+
+
+	// result = _writeReg(LSM6DS33_CTRL7_G, (char) 0b10000000 ); // Gyroscope: disable high performance mode, enable normal mode
+	// if (result != 0) {
+	// 	DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor");
+	// 	return -EIO;
+	// }
+	// result = _writeReg(LSM6DS33_CTRL6_C, (char) 0b00010000 ); // Accelerometer: disable high performance mode, enable normal mode
+	// if (result != 0) {
+	// 	DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor");
+	// 	return -EIO;
+	// }
+
+	
+	
 
 	// measure times
 	#if defined MEASURE_MEASURE_TIME && MEASURE_MEASURE_TIME == true
@@ -127,12 +201,18 @@ int LSM6DS33::lsm6ds33_init()
  */
 int LSM6DS33::lsm6ds33_deinit()
 {
+	int result;
 	// Leave the IMU in a reset state (turned off).
-	// int result = _writeReg(MPUREG_PWR_MGMT_1, BIT_H_RESET);
-
-	// if (result != 0) {
-	// 	DF_LOG_ERR("reset failed");
-	// }
+	result = _writeReg( LSM6DS33_CTRL1_XL,(char) 0b00000000 ); // PowerDown
+	if (result != 0) {
+		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Accel");
+		return -EIO;
+	}
+	result = _writeReg(LSM6DS33_CTRL2_G, (char) 0b00000000 ); // PowerDown
+	if (result != 0) {
+		DF_LOG_ERR("error: unable to configure LSM6DS33 IMU sensor Gyro");
+		return -EIO;
+	}
 
 	return 0;
 }
@@ -187,8 +267,9 @@ int LSM6DS33::_start()
  */
 int LSM6DS33::stop()
 {
-	int result = DevObj::stop();
+	lsm6ds33_deinit();
 
+	int result = DevObj::stop();
 	if (result != 0) {
 		DF_LOG_ERR("DevObj stop failed");
 		return result;
@@ -241,14 +322,30 @@ void LSM6DS33::_measureData()
 	read2_i2c_registerLSB(LSM6DS33_OUT_TEMP_L, &resultdata);
 	report.temp = roundf( (float) resultdata / 16 + 25 );
 
-	m_sensor_data.accel_m_s2_x = report.accel_x;
-	m_sensor_data.accel_m_s2_y = report.accel_y;
-	m_sensor_data.accel_m_s2_z = -report.accel_z;
+	// Check if the full accel range of the accel has been used. If this occurs, it is
+	// either a spike due to a crash/landing or a sign that the vibrations levels
+	// measured are excessive.
+	if (report.accel_x == INT16_MIN || report.accel_x == INT16_MAX ||
+	    report.accel_y == INT16_MIN || report.accel_y == INT16_MAX ||
+	    report.accel_z == INT16_MIN || report.accel_z == INT16_MAX) {
+		++m_sensor_data.accel_range_hit_counter;
+	}
+
+	// Also check the full gyro range, however, this is very unlikely to happen.
+	if (report.gyro_x == INT16_MIN || report.gyro_x == INT16_MAX ||
+	    report.gyro_y == INT16_MIN || report.gyro_y == INT16_MAX ||
+	    report.gyro_z == INT16_MIN || report.gyro_z == INT16_MAX) {
+		++m_sensor_data.gyro_range_hit_counter;
+	}
+
+	m_sensor_data.accel_m_s2_x = report.accel_x * _acc_scale;
+	m_sensor_data.accel_m_s2_y = report.accel_y * _acc_scale;
+	m_sensor_data.accel_m_s2_z = report.accel_z * _acc_scale;
 
 	m_sensor_data.temp_c = float(report.temp) / 16.0f  + 25.0f;
-	m_sensor_data.gyro_rad_s_x = float(report.gyro_x);
-	m_sensor_data.gyro_rad_s_y = float(report.gyro_y);
-	m_sensor_data.gyro_rad_s_z = -float(report.gyro_z);
+	m_sensor_data.gyro_rad_s_x = float(report.gyro_x) * _gyro_scale;
+	m_sensor_data.gyro_rad_s_y = float(report.gyro_y) * _gyro_scale;
+	m_sensor_data.gyro_rad_s_z = float(report.gyro_z) * _gyro_scale;
 
 	++m_sensor_data.read_counter;
 
@@ -258,7 +355,9 @@ void LSM6DS33::_measureData()
 	Utilities::measureAndPrintRealTime(begin_time, (char *) "LSM6DS33");
 	#endif 
 
-	// DF_LOG_DEBUG("accel x: %d, y: %d, z: %d \t gyro x: %d, y: %d, z: %d", report.accel_x, report.accel_y, report.accel_z, report.gyro_x, report.gyro_y, report.gyro_z);
+	// DF_LOG_INFO("Temperature: %.2f", (double) m_sensor_data.temp_c);
+	// DF_LOG_INFO("gyro x: %7.4f, y: %7.4f, z: %7.4f", (double)m_sensor_data.gyro_rad_s_x, (double)m_sensor_data.gyro_rad_s_y, (double)m_sensor_data.gyro_rad_s_z);
+	// DF_LOG_INFO("accel x: %6.2f, y: %6.2f, z: %6.2f", (double)m_sensor_data.accel_m_s2_x, (double)m_sensor_data.accel_m_s2_y, (double)m_sensor_data.accel_m_s2_z);
 
 }
 

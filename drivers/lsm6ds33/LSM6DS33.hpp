@@ -103,9 +103,23 @@ namespace DriverFramework
     #define LSM6DS33_MD1_CFG                 0x5E
     #define LSM6DS33_MD2_CFG                 0x5F
 
-    // update frequency 350 Hz
+    #define LSM6DS33_BITS_FS_XL_2G           0x00
+    #define LSM6DS33_BITS_FS_XL_4G           0x08
+    #define LSM6DS33_BITS_FS_XL_8G           0x0C
+    #define LSM6DS33_BITS_FS_XL_16G          0x04
+    #define LSM6DS33_BITS_BW_XL_400HZ        0x00
+    #define LSM6DS33_BITS_BW_XL_200HZ        0x01
+    #define LSM6DS33_BITS_BW_XL_100HZ        0x02
+    #define LSM6DS33_BITS_BW_XL_50HZ         0x03
+
+    #define LSM6DS33_BITS_FS_G_245DPS        0x00
+    #define LSM6DS33_BITS_FS_G_500DPS        0x04
+    #define LSM6DS33_BITS_FS_G_1000DPS       0x08
+    #define LSM6DS33_BITS_FS_G_2000DPS       0x0C
+
+    /* update frequency 350 Hz */
     // #define LSM6DS33_MEASURE_INTERVAL_US 2857
-    // update frequency 250 Hz
+    /* update frequency 250 Hz */
     #define LSM6DS33_MEASURE_INTERVAL_US 4000
     //
     #define DRV_DF_DEVTYPE_LSM6DS33 0x65
@@ -168,6 +182,10 @@ namespace DriverFramework
         // @returns 0 on success, -errno on failure
         int lsm6ds33_deinit();
 
+        void set_gyro_scale(int scale);
+        void set_acc_scale(int scale);
+        void set_mag_scale(int scale);
+
         int set_i2c_slave_config();
 
         int _start();
@@ -175,5 +193,9 @@ namespace DriverFramework
         int read2_i2c_registerLSB(uint8_t address, int16_t *resultdata);
 
         double begin_time; // store the time measurement in it, if it is desired
+
+        float _gyro_scale;
+        float _acc_scale;
+        float _mag_scale;
     };
 }
