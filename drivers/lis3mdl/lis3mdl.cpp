@@ -71,12 +71,12 @@ int LIS3MDL::lis3mdl_init()
 		DF_LOG_ERR("error: LIS3MDL sensor configuration  failed");
 		return -EIO;
 	}
-    result = _writeReg(LIS3MDL_CTRL_REG2, (uint8_t) 0b00000000 | BITS_FS_M_4Gs); // set full scale range
+    result = _writeReg(LIS3MDL_CTRL_REG2, (uint8_t) 0b00000000 | BITS_FS_M_16Gs); // set full scale range
     if (result != 0) {
 		DF_LOG_ERR("error: LIS3MDL sensor configuration  failed");
 		return -EIO;
 	}
-    set_mag_scale(BITS_FS_M_4Gs);
+    set_mag_scale(BITS_FS_M_16Gs);
 
     result = _writeReg(LIS3MDL_CTRL_REG3, (uint8_t) 0b00000000); // MD[1:0] = 00 - Continuous-conversion mode
 	if (result != 0) {
