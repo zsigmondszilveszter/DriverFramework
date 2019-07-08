@@ -60,13 +60,20 @@ int MPU9250::set_i2c_slave_config()
 {
 	int result = 0;
 
+#if defined(__IMU_USE_I2C)
+#ifdef __DF_BBBLUE
+	result = rc_i2c_set_device_address(m_bus_num, MPU9250_SLAVE_ADDRESS);
+#else
 	result = _setSlaveConfig(MPU9250_SLAVE_ADDRESS,
 				 MPU9250_I2C_BUS_FREQUENCY_IN_KHZ,
 				 MPU9250_TRANSFER_TIMEOUT_IN_USECS);
+#endif
 
 	if (result < 0) {
 		DF_LOG_ERR("Could not set slave config, result: %d", result);
 	}
+
+#endif
 
 	return result;
 }
@@ -218,9 +225,8 @@ int MPU9250::mpu9250_init()
 	result = _writeReg(MPUREG_CONFIG,
 			   BITS_DLPF_CFG_184HZ | BITS_CONFIG_FIFO_MODE_OVERWRITE);
 #else
-	// result = _writeReg(MPUREG_CONFIG, BITS_DLPF_CFG_92HZ | BITS_CONFIG_FIFO_MODE_OVERWRITE);
-	result = _writeReg(MPUREG_CONFIG, BITS_DLPF_CFG_184HZ | BITS_CONFIG_FIFO_MODE_OVERWRITE); 
-	// result = _writeReg(MPUREG_CONFIG, BITS_DLPF_CFG_250HZ | BITS_CONFIG_FIFO_MODE_OVERWRITE); 
+	result = _writeReg(MPUREG_CONFIG,
+			   BITS_DLPF_CFG_92HZ | BITS_CONFIG_FIFO_MODE_OVERWRITE);
 #endif
 
 	if (result != 0) {
@@ -320,9 +326,7 @@ int MPU9250::_start()
 	/* Open the device path specified in the class initialization. */
 	// attempt to open device in start()
 #if defined(__IMU_USE_I2C)
-	#if defined(__DF_BBBLUE)
-		rc_init();
-	#endif
+	rc_init();
 
 	int result = I2CDevObj::start();
 

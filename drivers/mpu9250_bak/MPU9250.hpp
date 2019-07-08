@@ -33,7 +33,9 @@
 
 #pragma once
 
+#if defined(__DF_BBBLUE)
 #define __IMU_USE_I2C
+#endif
 
 #include "ImuSensor.hpp"
 #include "MPU9250_mag.hpp"
@@ -183,8 +185,16 @@ namespace DriverFramework
 #define M_PI_F 3.14159265358979323846f
 #endif
 
+#if defined(__DF_EDISON)
 // update frequency 250 Hz
 #define MPU9250_MEASURE_INTERVAL_US 4000
+#elif defined(__DF_RPI_SINGLE)
+// update frequency 1000 Hz,if using rpi1,rpi zero,1000hz may be to higher,please reduce the frequency
+#define MPU9250_MEASURE_INTERVAL_US 1000
+#else
+// update frequency 1000 Hz
+#define MPU9250_MEASURE_INTERVAL_US 1000
+#endif
 
 // -2000 to 2000 degrees/s, 16 bit signed register, deg to rad conversion
 #define GYRO_RAW_TO_RAD_S 	 (2000.0f / 32768.0f * M_PI_F / 180.0f)
@@ -195,6 +205,11 @@ namespace DriverFramework
 #define MPU_WHOAMI_9250			0x71
 #define MPU_WHOAMI_9250_REAL		0x73
 
+#if defined(__IMU_USE_I2C)
+#if defined(__DF_BBBLUE)
+extern pthread_mutex_t _mutex_shared_i2c_2_bus;
+#endif
+
 #define MPU9250_SLAVE_ADDRESS 0x68       /* 7-bit slave address */
 
 // Currently for __DF_LINUX, int I2CDevObj::_setSlaveConfig(uint32_t slave_address, uint32_t bus_frequency_khz, uint32_t transfer_timeout_usec)
@@ -203,6 +218,7 @@ namespace DriverFramework
 #define MPU9250_I2C_BUS_FREQUENCY_IN_KHZ 400
 #define MPU9250_TRANSFER_TIMEOUT_IN_USECS 900
 
+#endif
 
 #pragma pack(push, 1)
 struct fifo_packet {
